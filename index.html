@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 장애 분석기</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+        body {
+            padding: 20px;
+            background-color: #f8f9fa;
+        }
+
+        .header-container {
+            text-align: center;
+            margin-bottom: 30px;
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        .logo-img {
+            max-height: 80px;
+            margin-bottom: 15px;
+        }
+
+        .card {
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .ai-content {
+            white-space: pre-line;
+            line-height: 1.6;
+        }
+
+        .loading {
+            text-align: center;
+            font-size: 1.2rem;
+            color: #007bff;
+            display: none;
+        }
+
+        /* 인쇄 스타일 */
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+
+            .header-container,
+            #resultCard,
+            #resultCard * {
+                visibility: visible;
+            }
+
+            .header-container {
+                page-break-after: avoid;
+            }
+
+            #resultCard {
+                position: absolute;
+                left: 0;
+                top: 100px;
+                width: 100%;
+                box-shadow: none;
+            }
+
+            .btn {
+                display: none !important;
+            }
+
+            .card-header {
+                background-color: #17a2b8 !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <!-- 헤더 & 로고 -->
+        <div class="header-container">
+            <img src="io.png" alt="Logo" class="logo-img" onerror="this.style.display='none'">
+            <h2 class="mt-2">AI 장애 분석기</h2>
+            <p class="text-muted">AI 기반 장애 원인 분석 및 리포트 생성</p>
+        </div>
+
+        <div class="card">
+            <div class="card-body">
+                <div class="form-group">
+                    <label for="faultType">장애 유형 선택</label>
+                    <select id="faultType" class="form-control">
+                        <option value="">로딩 중...</option>
+                    </select>
+                </div>
+                <button onclick="analyze()" class="btn btn-success btn-block">AI 분석 실행</button>
+            </div>
+        </div>
+
+        <div id="loading" class="loading">
+            <div class="spinner-border text-primary" role="status">
+                <span class="sr-only">Loading...</span>
+            </div>
+            <p class="mt-2">AI가 장애를 분석하고 보고서를 작성 중입니다... (최대 1-2분 소요)</p>
+        </div>
+
+        <div class="card" id="resultCard" style="display:none;">
+            <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+                <span>분석 결과</span>
+                <button type="button" class="btn btn-sm btn-light" onclick="printAnalysis()">🖨️ 인쇄</button>
+            </div>
+            <div class="card-body">
+                <div class="row mb-3 text-center">
+                    <div class="col-4">
+                        <h5>총 발생</h5>
+                        <h3 id="totalIncidents">0</h3>
+                    </div>
+                    <div class="col-4">
+                        <h5>연평균</h5>
+                        <h3 id="yearlyFreq">0</h3>
+                    </div>
+                    <div class="col-4">
+                        <h5>중요도</h5>
+                        <h3 id="importance">-</h3>
+                    </div>
+                </div>
+                <hr>
+                <h5>🤖 AI 분석 리포트</h5>
+                <div id="aiContent" class="ai-content p-3 bg-light rounded border"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function loadFaultTypes() {
+            try {
+                const res = await fetch('/fault_types');
+                const data = await res.json();
+                const select = document.getElementById('faultType');
+                select.innerHTML = '<option value="">선택하세요</option>';
+                data.fault_types.forEach(type => {
+                    const option = document.createElement('option');
+                    option.value = type;
+                    option.textContent = type;
+                    select.appendChild(option);
+                });
+            } catch (e) {
+                alert('장애 유형 로드 실패: ' + e);
+            }
+        }
+
+        async function analyze() {
+            const faultType = document.getElementById('faultType').value;
+            if (!faultType) return alert('장애 유형을 선택하세요.');
+
+            document.getElementById('resultCard').style.display = 'none';
+            document.getElementById('loading').style.display = 'block';
+
+            try {
+                const res = await fetch('/analyze', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ fault_type: faultType })
+                });
+
+                if (!res.ok) throw new Error(await res.text());
+
+                const data = await res.json();
+                showResult(data);
+            } catch (e) {
+                alert('분석 실패: ' + e);
+            } finally {
+                document.getElementById('loading').style.display = 'none';
+            }
+        }
+
+        function showResult(data) {
+            document.getElementById('resultCard').style.display = 'block';
+            document.getElementById('totalIncidents').textContent = data.total_incidents + '건';
+            document.getElementById('yearlyFreq').textContent = data.yearly_frequency.toFixed(1) + '건';
+            document.getElementById('importance').textContent = data.importance_level;
+            document.getElementById('aiContent').textContent = data.ai_recommendation;
+        }
+
+        // 인쇄 함수
+        function printAnalysis() {
+            window.print();
+        }
+
+        window.onload = loadFaultTypes;
+    </script>
+</body>
+
+</html>

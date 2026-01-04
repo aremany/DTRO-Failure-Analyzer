@@ -1,4 +1,4 @@
-# 🔍 장애 분석기 (Failure Analyzer)
+# 🔍 대구교통공사(DTRO) 장애 분석기 (Failure Analyzer)
 
 ![DTRO Logo](ci.png)
 
